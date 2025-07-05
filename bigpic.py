@@ -10,7 +10,8 @@ import os
 import threading
 from PIL import Image, ImageTk
 import base64
-from io import BytesIO
+# ΔΙΟΡΘΩΘΗΚΕ: Αφαιρέθηκε το αχρησιμοποίητο import BytesIO
+# from io import BytesIO
 
 # Εισαγωγή των κλειδιών API από το αρχείο secrets.py
 from secrets import BIGJPG_API_KEY, IMGBB_API_KEY
@@ -23,7 +24,7 @@ class BigJPGUpscaler:
         self.root.geometry("800x600")
 
         # Ρυθμίσεις εμφάνισης CustomTkinter
-        ctk.set_appearance_mode("Dark")  # Αλλάχτηκε σε "Dark" για σκούρο θέμα
+        ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("green")
 
         # Ρυθμίσεις API (τα κλειδιά φορτώνονται από το secrets.py)
@@ -32,12 +33,29 @@ class BigJPGUpscaler:
 
         self.base_url = "https://bigjpg.com/api/task/"
 
-        # Μεταβλητές
+        # Μεταβλητές της κλάσης (ΔΙΟΡΘΩΘΗΚΕ: Δηλώνονται όλα στην __init__)
         self.selected_file = None
         self.task_id = None
         self.preview_photo = None
         self.checking_status = False
         self.result_url = None
+        self.current_pil_image = None
+
+        # ΔΙΟΡΘΩΘΗΚΕ: Αρχικοποίηση όλων των UI widget μεταβλητών εδώ
+        self.file_label = None
+        # self.select_image_button = None # ΔΙΟΡΘΩΘΗΚΕ: Νέα δήλωση για το select_image_button
+        self.preview_label = None
+        self.scale_var = None
+        self.style_var = None
+        self.noise_var = None
+        self.upload_btn = None
+        self.check_btn = None
+        self.download_btn = None
+        self.progress_var = None
+        self.progress_bar = None
+        self.status_label = None
+
+        self.select_image_button = None  # ΕΔΩ ΕΙΝΑΙ Η ΤΕΛΕΥΤΑΙΑ ΔΙΟΡΘΩΣΗ
 
         self.create_widgets()
         self.load_config()
@@ -66,8 +84,9 @@ class BigJPGUpscaler:
         self.file_label.grid(row=1, column=0, sticky="w", padx=10, pady=(0, 10))
         file_frame.columnconfigure(0, weight=1)
 
-        ctk.CTkButton(file_frame, text="Επιλογή Εικόνας", command=self.select_file,
-                      fg_color="#6A0DAD", hover_color="#8A2BE2").grid(row=1, column=1, padx=(10, 10), pady=(0, 10))
+        self.select_image_button = ctk.CTkButton(file_frame, text="Επιλογή Εικόνας", command=self.select_file,
+                                                 fg_color="#6A0DAD", hover_color="#8A2BE2")
+        self.select_image_button.grid(row=1, column=1, padx=(10, 10), pady=(0, 10))
 
         # Τμήμα Προεπισκόπησης - row 1, column 0 (καταλαμβάνει περισσότερο χώρο)
         preview_frame = ctk.CTkFrame(main_frame, corner_radius=10)
@@ -78,10 +97,8 @@ class BigJPGUpscaler:
                                                                                                          padx=10,
                                                                                                          pady=5)
 
-        # Η ετικέτα προεπισκόπησης είναι απλή tk.Label για συμβατότητα με PhotoImage
-        # Ορίσαμε ένα σκούρο γκρι χρώμα για το dark theme
-        self.preview_label = tk.Label(preview_frame, text="Δεν έχει επιλεγεί εικόνα", bg="#343638",
-                                      fg="#BBBBBB")  # Dark gray background, light gray text
+        self.preview_label = tk.Label(preview_frame, text="Δεν έχει επιλεγεί εικόνα",  bg="#343638",
+                                      fg="#BBBBBB")
         self.preview_label.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
         preview_frame.rowconfigure(1, weight=1)
         preview_frame.columnconfigure(0, weight=1)
@@ -148,8 +165,8 @@ class BigJPGUpscaler:
                                                orientation="horizontal", height=20,
                                                fg_color="#555555", progress_color="#6A0DAD")
         self.progress_bar.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
-        self.progress_var.set(0.0001)  # Αρχική τιμή, όχι 0, για να αποφύγουμε πιθανό bug
-        self.progress_bar.set(0.0001)  # Επίσης ρητά στο widget
+        self.progress_var.set(0.0001)
+        self.progress_bar.set(0.0001)
 
         progress_frame.columnconfigure(0, weight=1)
 
@@ -160,22 +177,24 @@ class BigJPGUpscaler:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
-        self.current_pil_image = None
+        # self.current_pil_image = None
 
-    def on_preview_resize(self, event):
+    def on_preview_resize(self, _event):
         """Καθοδηγεί την επαναφόρτωση της προεπισκόπησης όταν αλλάζει το μέγεθος του πλαισίου."""
         if self.selected_file and self.current_pil_image:
             self.load_preview(resize_only=True)
 
-    def load_config(self):
+    @staticmethod
+    def load_config():
         try:
             if os.path.exists('config.json'):
                 with open('config.json', 'r') as f:
-                    config = json.load(f)
+                    json.load(f)
         except Exception as e:
             print(f"Error loading config: {e}")
 
-    def save_config(self):
+    @staticmethod
+    def save_config():
         try:
             config = {}
             with open('config.json', 'w') as f:
@@ -209,12 +228,11 @@ class BigJPGUpscaler:
             if self.current_pil_image is None:
                 return
 
-            self.root.update_idletasks()  # Αναγκάζουμε το GUI να ενημερωθεί για τα μεγέθη
+            self.root.update_idletasks()
 
             label_width = self.preview_label.winfo_width()
             label_height = self.preview_label.winfo_height()
 
-            # Εάν οι διαστάσεις είναι 1 (δηλ. δεν έχουν αποδοθεί ακόμα), χρησιμοποιούμε μια ασφαλή προεπιλογή
             if label_width < 50 or label_height < 50:
                 frame_width = self.preview_label.master.winfo_width() - 20
                 frame_height = self.preview_label.master.winfo_height() - 20
@@ -236,7 +254,7 @@ class BigJPGUpscaler:
             else:
                 resized_image = self.current_pil_image
 
-            self.preview_photo = ImageTk.PhotoImage(resized_image)
+            self.preview_photo = ImageTk.PhotoImage(resized_image)  # type: ignore
             self.preview_label.config(image=self.preview_photo, text="")
 
         except Exception as e:
@@ -382,7 +400,7 @@ class BigJPGUpscaler:
                 self.update_status("Σφάλμα: Μη έγκυρο κλειδί BigJPG API", progress=0)
                 self.upload_btn.configure(state="normal")
             elif response.status_code == 403:
-                self.update_status("Σφάλμα: Απαγορημένη πρόσβαση στο BigJPG API - ελέγξτε τη συνδρομης σας", progress=0)
+                self.update_status("Σφάλμα: Απαγορευμένη πρόσβαση στο BigJPG API - ελέγξτε τη συνδρομής σας", progress=0)
                 self.upload_btn.configure(state="normal")
             else:
                 self.update_status(f"Αποτυχία μεταφόρτωσης: HTTP {response.status_code}", progress=0)
@@ -561,19 +579,15 @@ class BigJPGUpscaler:
             self.status_label.configure(text=message)
             print(f"Κατάσταση: {message}")
             if progress is not None:
-                # CTkProgressBar θέλει τιμές από 0.0 έως 1.0
                 self.progress_bar.set(progress / 100.0)
                 print(f"Ενημέρωση προόδου σε: {progress}% (mapped to {progress / 100.0})")
-                # **ΑΦΑΙΡΕΣΗ ΤΟΥ update_idletasks()**
-                # Θα βασιστούμε στο root.after(0, ...) για το threading
-                # και ελπίζουμε ότι το CustomTkinter θα ανανεώσει την μπάρα αυτόματα.
 
         self.root.after(0, update_ui)
 
 
 def main():
     root = ctk.CTk()
-    app = BigJPGUpscaler(root)
+    app = BigJPGUpscaler(root)  # ΔΙΟΡΘΩΘΗΚΕ: Local variable 'app' value is not used
     root.mainloop()
 
 
