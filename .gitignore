@@ -7,7 +7,7 @@ secrets.py
 __pycache__/
 build/
 dist/
-*.spec 
+*.spec
 # Αυτό θα αγνοήσει όλα τα .spec αρχεία, όπως το bigpic.spec
 
 # Αποκλείει τους φακέλους του virtual environment
